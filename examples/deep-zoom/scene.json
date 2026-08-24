@@ -1,0 +1,395 @@
+{
+  "title": "DeskNoire",
+  "description": "A bunch of stuff you would find on a price detectives desk.",
+  "media": [
+    {
+      "id": "media.main",
+      "type": "image",
+      "src": "desknoire-source.dzi"
+    }
+  ],
+  "objects": [
+    {
+      "id": "obj.ai-0",
+      "label": "Ashtray",
+      "type": "Metal",
+      "location": {
+        "x": 0.121,
+        "y": 0.247
+      },
+      "description": "",
+      "tags": [
+        "ai-suggested"
+      ],
+      "actions": [
+        "highlight",
+        "showAnnotation"
+      ],
+      "aiConfidence": 0.69
+    },
+    {
+      "id": "obj.ai-1",
+      "label": "Knife",
+      "type": "knife",
+      "location": {
+        "x": 0.686,
+        "y": 0.88
+      },
+      "description": "",
+      "tags": [
+        "ai-suggested"
+      ],
+      "actions": [
+        "highlight",
+        "showAnnotation"
+      ],
+      "aiConfidence": 0.46
+    },
+    {
+      "id": "obj.ai-3",
+      "label": "Bottle",
+      "type": "Glass",
+      "location": {
+        "x": 0.86,
+        "y": 0.282
+      },
+      "description": "",
+      "tags": [
+        "ai-suggested"
+      ],
+      "actions": [
+        "highlight",
+        "showAnnotation"
+      ],
+      "aiConfidence": 0.87
+    },
+    {
+      "id": "obj.ai-4",
+      "label": "Lighter",
+      "type": "Metal",
+      "location": {
+        "x": 0.918,
+        "y": 0.7
+      },
+      "description": "",
+      "tags": [
+        "ai-suggested"
+      ],
+      "actions": [
+        "highlight",
+        "showAnnotation"
+      ],
+      "aiConfidence": 0.55
+    },
+    {
+      "id": "obj.ai-5",
+      "label": "Dollars",
+      "type": "Paper",
+      "location": {
+        "x": 0.159,
+        "y": 0.826
+      },
+      "description": "",
+      "tags": [
+        "ai-suggested"
+      ],
+      "actions": [
+        "highlight",
+        "showAnnotation"
+      ],
+      "aiConfidence": 0.81
+    },
+    {
+      "id": "obj.ai-6",
+      "label": "NoteBook",
+      "type": "Paper",
+      "location": {
+        "x": 0.734,
+        "y": 0.747
+      },
+      "description": "",
+      "tags": [
+        "ai-suggested"
+      ],
+      "actions": [
+        "highlight",
+        "showAnnotation"
+      ],
+      "aiConfidence": 0.97
+    },
+    {
+      "id": "obj.ai-8",
+      "label": "Desk Top",
+      "type": "Wood",
+      "location": {
+        "x": 0.503,
+        "y": 0.503
+      },
+      "description": "",
+      "tags": [
+        "ai-suggested"
+      ],
+      "actions": [
+        "highlight",
+        "showAnnotation"
+      ],
+      "aiConfidence": 0.96
+    },
+    {
+      "id": "obj.ai-10",
+      "label": "Tumbler",
+      "type": "Glass",
+      "location": {
+        "x": 0.897,
+        "y": 0.517
+      },
+      "description": "",
+      "tags": [
+        "ai-suggested"
+      ],
+      "actions": [
+        "highlight",
+        "showAnnotation"
+      ],
+      "aiConfidence": 0.99
+    },
+    {
+      "id": "obj.manual-1",
+      "label": "Coin",
+      "type": "Metal",
+      "location": {
+        "x": 0.054,
+        "y": 0.633
+      },
+      "description": "",
+      "tags": [
+        "manual"
+      ],
+      "actions": [
+        "highlight",
+        "showAnnotation"
+      ]
+    },
+    {
+      "id": "obj.manual-2",
+      "label": "Coin",
+      "type": "Metal",
+      "location": {
+        "x": 0.183,
+        "y": 0.675
+      },
+      "description": "",
+      "tags": [
+        "manual"
+      ],
+      "actions": [
+        "highlight",
+        "showAnnotation"
+      ]
+    },
+    {
+      "id": "obj.manual-3",
+      "label": "Coin",
+      "type": "Metal",
+      "location": {
+        "x": 0.223,
+        "y": 0.74
+      },
+      "description": "",
+      "tags": [
+        "manual"
+      ],
+      "actions": [
+        "highlight",
+        "showAnnotation"
+      ]
+    },
+    {
+      "id": "obj.manual-4",
+      "label": "Key",
+      "type": "Metal",
+      "location": {
+        "x": 0.414,
+        "y": 0.857
+      },
+      "description": "",
+      "tags": [
+        "manual"
+      ],
+      "actions": [
+        "highlight",
+        "showAnnotation"
+      ]
+    },
+    {
+      "id": "obj.manual-5",
+      "label": "Lock pick",
+      "type": "Metal",
+      "location": {
+        "x": 0.747,
+        "y": 0.528
+      },
+      "description": "",
+      "tags": [
+        "manual"
+      ],
+      "actions": [
+        "highlight",
+        "showAnnotation"
+      ]
+    },
+    {
+      "id": "obj.manual-6",
+      "label": "cigarette case",
+      "type": "Metal",
+      "location": {
+        "x": 0.328,
+        "y": 0.173
+      },
+      "description": "",
+      "tags": [
+        "manual"
+      ],
+      "actions": [
+        "highlight",
+        "showAnnotation"
+      ]
+    },
+    {
+      "id": "obj.manual-7",
+      "label": "Bullets",
+      "type": "Metal",
+      "location": {
+        "x": 0.619,
+        "y": 0.468
+      },
+      "description": "",
+      "tags": [
+        "manual"
+      ],
+      "actions": [
+        "highlight",
+        "showAnnotation"
+      ]
+    },
+    {
+      "id": "obj.manual-8",
+      "label": "Glove",
+      "type": "Leather",
+      "location": {
+        "x": 0.62,
+        "y": 0.241
+      },
+      "description": "",
+      "tags": [
+        "manual"
+      ],
+      "actions": [
+        "highlight",
+        "showAnnotation"
+      ]
+    },
+    {
+      "id": "obj.manual-9",
+      "label": "Colt 1911 Pistol",
+      "type": "Metal",
+      "location": {
+        "x": 0.343,
+        "y": 0.508
+      },
+      "description": "",
+      "tags": [
+        "manual"
+      ],
+      "actions": [
+        "highlight",
+        "showAnnotation"
+      ]
+    },
+    {
+      "id": "obj.manual-10",
+      "label": "Holster",
+      "type": "Leather",
+      "location": {
+        "x": 0.45,
+        "y": 0.615
+      },
+      "description": "",
+      "tags": [
+        "manual"
+      ],
+      "actions": [
+        "highlight",
+        "showAnnotation"
+      ]
+    },
+    {
+      "id": "obj.manual-11",
+      "label": "Lamp",
+      "type": "Metal",
+      "location": {
+        "x": 0.644,
+        "y": 0.096
+      },
+      "description": "",
+      "tags": [
+        "manual"
+      ],
+      "actions": [
+        "highlight",
+        "showAnnotation"
+      ]
+    },
+    {
+      "id": "obj.manual-12",
+      "label": "Cassette",
+      "type": "Plastic",
+      "location": {
+        "x": 0.925,
+        "y": 0.853
+      },
+      "description": "",
+      "tags": [
+        "manual"
+      ],
+      "actions": [
+        "highlight",
+        "showAnnotation"
+      ]
+    },
+    {
+      "id": "obj.manual-mt0ki8fg",
+      "label": "Pen",
+      "type": "Composite",
+      "location": {
+        "x": 0.699,
+        "y": 0.705
+      },
+      "description": "Metal and Plastic",
+      "tags": [
+        "manual"
+      ],
+      "actions": [
+        "highlight",
+        "showAnnotation"
+      ]
+    },
+    {
+      "id": "obj.manual-mt1jb9dr",
+      "label": "Dohicky",
+      "type": "Metal",
+      "location": {
+        "x": 0.568,
+        "y": 0.787
+      },
+      "description": "",
+      "tags": [
+        "manual"
+      ],
+      "actions": [
+        "highlight",
+        "showAnnotation"
+      ]
+    }
+  ]
+}

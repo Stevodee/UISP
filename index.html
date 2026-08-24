@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UISP — Intelligent Image Viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Structural CSS only — layout mechanics (flex arrangement, positioning,
+     stacking order). Anything about how things LOOK (color, type, size,
+     borders, shadows, animation) lives in theme.css instead. This file
+     shouldn't need to change when a theme changes, and a theme shouldn't
+     need to touch this file. */
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; overflow:hidden; }
+  .app{ display:flex; flex-direction:column; height:100%; }
+
+  header{ display:flex; align-items:baseline; gap:16px; flex-wrap:wrap; }
+
+  .body{ flex:1; display:flex; min-height:0; }
+  aside{ flex:none; display:flex; flex-direction:column; min-height:0; }
+  .catalog-list{ flex:1; overflow-y:auto; }
+
+  .stage-wrap{ flex:1; position:relative; min-width:0; }
+  .toolbar{ position:absolute; top:14px; right:14px; z-index:5; display:flex; gap:6px; }
+
+  #osd{ position:absolute; inset:0; background:transparent; }
+  .openseadragon-canvas{ outline:none; }
+
+  .pin{ margin:0; padding:0; border:none; background:none; cursor:pointer; transform-origin:center; }
+
+  #annotation{ position:absolute; left:14px; bottom:14px; z-index:6; display:none; }
+  #annotation.show{ display:block; }
+  #annotation .arow{ display:flex; gap:8px; flex-wrap:wrap; }
+  #annotation .close{ position:absolute; top:8px; right:10px; border:none; background:none; cursor:pointer; }
+
+  .hint{ position:absolute; left:14px; top:14px; z-index:5; pointer-events:none; }
+  #coord-toast{ position:absolute; left:14px; bottom:14px; z-index:7; opacity:0; transition:opacity .2s; pointer-events:none; }
+
+  #loading{ position:absolute; inset:0; z-index:9; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:10px; }
+  #load-error{ position:absolute; inset:0; z-index:8; display:flex; align-items:center; justify-content:center; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <span class="scene-id" id="scene-id">SCENE —</span>
+    <div>
+      <h1 id="scene-title">Loading…</h1>
+      <p id="scene-desc"></p>
+    </div>
+  </header>
+
+  <div class="body">
+    <aside>
+      <h2>Catalog</h2>
+      <div class="search-wrap"><input id="search" type="text" placeholder="Search objects…" aria-label="Search scene objects"></div>
+      <div class="catalog-list" id="catalog-list"></div>
+    </aside>
+
+    <div class="stage-wrap">
+      <div class="hint">drag to pan · scroll / pinch to zoom · shift+click to copy coordinates</div>
+      <div id="coord-toast"></div>
+      <div class="toolbar">
+        <button id="zoom-out" title="Zoom out" aria-label="Zoom out">−</button>
+        <button id="zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
+        <button id="fit" title="Fit to screen" aria-label="Fit to screen">⤢</button>
+      </div>
+      <div id="loading"><div class="spinner"></div><span>Loading scene…</span></div>
+      <div id="load-error" style="display:none;"></div>
+      <div id="osd"></div>
+      <div id="annotation">
+        <button class="close" id="ann-close" aria-label="Close">✕</button>
+        <span class="aid" id="ann-id"></span>
+        <h3 id="ann-title"></h3>
+        <span class="atype" id="ann-type"></span>
+        <p id="ann-desc"></p>
+        <div class="arow" id="ann-actions"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="theme-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/openseadragon@4.1/build/openseadragon/openseadragon.min.js"></script>
+<script>
+/* ============================================================
+   The one canonical UISP viewer. Implements the renderer-agnostic
+   Scene.* API from SCENE_SPEC.md (load / goto / highlight / find /
+   search). Rendering is backed by OpenSeadragon, which transparently
+   handles both plain images and deep-zoom tile pyramids from the
+   same media.src field — scene.json never needs to say which kind
+   it is. This consolidates what were previously two separate files
+   (a CSS-transform viewer for flat images, a deep-zoom-specific one)
+   into one, now that both cases are provably handled by one engine.
+   ============================================================ */
+const annEl = document.getElementById('annotation');
+const listEl = document.getElementById('catalog-list');
+const searchEl = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+
+let scene = null;
+let SCENE_W = 1, SCENE_H = 1;
+let pins = {};
+let osdViewer = null;
+
+const FOCUS_ZOOM_FACTOR = 2.4; // how much closer than "fit" Scene.goto zooms in
+
+function prefersReducedMotion(){ return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+
+// OpenSeadragon only auto-resolves a bare string URL for tile-pyramid
+// descriptors (.dzi, .xml, legacy .js pyramids, IIIF info.json). A plain
+// raster image needs to be wrapped explicitly, or it silently fails to
+// open. This is the one place that distinction lives — everywhere else
+// in this file just deals with "the scene's image," tiled or not.
+function resolveTileSource(src){
+  if (/\.(dzi|xml|js)(\?|$)/i.test(src) || /info\.json(\?|$)/i.test(src)) return src;
+  return { type: 'image', url: src };
+}
+
+const Scene = {
+  load(data){
+    return new Promise((resolve, reject) => {
+      scene = data;
+      document.getElementById('scene-title').textContent = data.title;
+      document.getElementById('scene-desc').textContent = data.description;
+      document.getElementById('scene-id').textContent = 'SCENE · ' + (data.media[0].id || '001').toUpperCase();
+
+      osdViewer = OpenSeadragon({
+        id: "osd",
+        prefixUrl: "https://cdn.jsdelivr.net/npm/openseadragon@4.1/build/openseadragon/images/",
+        tileSources: resolveTileSource(data.media[0].src),
+        showNavigator: true,
+        navigatorPosition: "BOTTOM_RIGHT",
+        animationTime: prefersReducedMotion() ? 0 : 0.6,
+        springStiffness: 8,
+        gestureSettingsMouse: { clickToZoom: false },
+        visibilityRatio: 1
+      });
+
+      osdViewer.addHandler('open', () => {
+        const src = osdViewer.world.getItemAt(0).source;
+        SCENE_W = src.dimensions ? src.dimensions.x : src.width;
+        SCENE_H = src.dimensions ? src.dimensions.y : src.height;
+        pins = {};
+        data.objects.forEach(obj => buildPin(obj));
+        buildCatalog(data.objects);
+        loadingEl.style.display = 'none';
+        wireInteractions();
+        resolve();
+      });
+      osdViewer.addHandler('open-failed', e => reject(new Error(e.message || 'Could not open the image/tile source.')));
+    });
+  },
+  find(tag){ return scene.objects.filter(o => (o.tags||[]).includes(tag)); },
+  search(text){
+    const q = text.trim().toLowerCase();
+    const matches = !q ? scene.objects : scene.objects.filter(o =>
+      o.label.toLowerCase().includes(q) || (o.description||'').toLowerCase().includes(q) || (o.tags||[]).some(t=>t.includes(q)));
+    const matchIds = new Set(matches.map(o=>o.id));
+    scene.objects.forEach(o => {
+      const dim = q && !matchIds.has(o.id);
+      pins[o.id]?.overlayEl.classList.toggle('dim', dim);
+      const item = listEl.querySelector(`[data-id="${o.id}"]`);
+      if(item) item.classList.toggle('dim', dim);
+    });
+    return matches;
+  },
+  highlight(id){
+    const pin = pins[id];
+    if(!pin) return;
+    pin.overlayEl.classList.remove('pulse'); void pin.overlayEl.offsetWidth; pin.overlayEl.classList.add('pulse');
+  },
+  goto(id){
+    const obj = scene.objects.find(o=>o.id===id);
+    if(!obj || !osdViewer) return;
+    const point = new OpenSeadragon.Point(obj.location.x*SCENE_W, obj.location.y*SCENE_H);
+    const viewportPoint = osdViewer.viewport.imageToViewportCoordinates(point);
+    const targetZoom = Math.max(osdViewer.viewport.getZoom(), osdViewer.viewport.getHomeZoom()*FOCUS_ZOOM_FACTOR);
+    osdViewer.viewport.panTo(viewportPoint, prefersReducedMotion());
+    osdViewer.viewport.zoomTo(targetZoom, viewportPoint, prefersReducedMotion());
+    Scene.highlight(id);
+  },
+  open(id){
+    const obj = scene.objects.find(o=>o.id===id);
+    const url = obj?.links?.url || obj?.links?.wikipedia;
+    if(url) window.open(url, '_blank', 'noopener');
+  }
+};
+window.Scene = Scene;
+
+function buildPin(obj){
+  const btn = document.createElement('button');
+  btn.className = 'pin';
+  btn.setAttribute('aria-label', obj.label);
+  btn.innerHTML = `<span class="ring">${pinGlyph(obj)}</span>`;
+  btn.addEventListener('click', () => activate(obj.id));
+
+  const point = new OpenSeadragon.Point(obj.location.x*SCENE_W, obj.location.y*SCENE_H);
+  const viewportPoint = osdViewer.viewport.imageToViewportCoordinates(point);
+  osdViewer.addOverlay({ element: btn, location: viewportPoint, placement: OpenSeadragon.Placement.CENTER });
+
+  pins[obj.id] = { overlayEl: btn };
+}
+
+function pinGlyph(obj){
+  const icon = window.UISP_THEME?.icons?.[obj.type];
+  return icon || catalogNo(obj);
+}
+
+function catalogNo(obj){ const i = scene.objects.findIndex(o=>o.id===obj.id); return String(i+1).padStart(2,'0'); }
+
+function buildCatalog(objects){
+  listEl.innerHTML = '';
+  objects.forEach((obj, i) => {
+    const item = document.createElement('button');
+    item.className = 'catalog-item';
+    item.dataset.id = obj.id;
+    item.innerHTML = `<span class="cid">OBJ.${String(i+1).padStart(2,'0')} — ${obj.id}</span>
+      <span class="clabel">${obj.label}</span><br><span class="ctype">${obj.type}</span>`;
+    item.addEventListener('click', () => activate(obj.id));
+    listEl.appendChild(item);
+  });
+}
+
+/* ---------------- annotation + URL deep-linking (identical to Phase 1) ---------------- */
+function objectURL(id){
+  const url = new URL(window.location.href);
+  url.search = '';
+  url.searchParams.set('object', id);
+  return url.toString();
+}
+
+// -----------------------------------------------------------
+// Action button registry. Each object.actions entry that has an
+// entry here (and passes its `enabled` check) gets a button in
+// the annotation card. Adding a new action later means adding
+// one entry — nothing else in this file needs to change.
+//
+// NOT YET IMPLEMENTED — reserved so the shape is ready when
+// these are wanted (per user request, deliberately not built now):
+//   playVideo    -> obj.media referencing a "video" media entry
+//                   (SCENE_SPEC.md already lists "video" as a type)
+//   playAudio    -> same, referencing an "audio" media entry
+//   openDocument -> same, referencing a "document" media entry
+//   showGallery  -> PROPOSED addition: obj.media as an array of
+//                   "image" entries. Not yet in SCENE_SPEC.md —
+//                   would need a small, deliberate spec addition,
+//                   not a silent one.
+//   view3D       -> obj.media referencing a "model" media entry
+//                   (glTF, per RESEARCH.md's decision to build on
+//                   glTF rather than invent a 3D format)
+// All five would open some kind of lightbox/player overlay that
+// doesn't exist yet. This registry is only where it would plug in.
+// -----------------------------------------------------------
+const ACTION_HANDLERS = {
+  openURL: {
+    enabled: obj => (obj.actions||[]).includes('openURL') && (obj.links?.url || obj.links?.wikipedia),
+    label: 'Learn more ↗',
+    className: 'primary',
+    run: obj => Scene.open(obj.id)
+  }
+};
+
+function applyActivation(id){
+  const obj = scene.objects.find(o=>o.id===id);
+  if(!obj) return;
+  document.querySelectorAll('.pin.active').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.catalog-item.active').forEach(p=>p.classList.remove('active'));
+  pins[id].overlayEl.classList.add('active');
+  const item = listEl.querySelector(`[data-id="${id}"]`);
+  if(item) item.classList.add('active');
+
+  Scene.goto(id);
+
+  document.getElementById('ann-id').textContent = 'OBJ.' + catalogNo(obj) + ' · ' + obj.id;
+  document.getElementById('ann-title').textContent = obj.label;
+  document.getElementById('ann-type').textContent = obj.type;
+  document.getElementById('ann-desc').textContent = obj.description || '';
+  const actions = document.getElementById('ann-actions');
+  actions.innerHTML = '';
+  Object.values(ACTION_HANDLERS).forEach(def => {
+    if(!def.enabled(obj)) return;
+    const b = document.createElement('button');
+    b.textContent = def.label;
+    if(def.className) b.className = def.className;
+    b.addEventListener('click', () => def.run(obj));
+    actions.appendChild(b);
+  });
+  const b2 = document.createElement('button');
+  b2.textContent = 'Re-center';
+  b2.addEventListener('click', ()=>Scene.goto(obj.id));
+  actions.appendChild(b2);
+
+  const b3 = document.createElement('button');
+  b3.textContent = 'Copy link';
+  b3.addEventListener('click', ()=>{
+    navigator.clipboard?.writeText(objectURL(id)).then(()=>{
+      b3.textContent = 'Copied!';
+      setTimeout(()=>{ b3.textContent = 'Copy link'; }, 1400);
+    }).catch(()=>{});
+  });
+  actions.appendChild(b3);
+
+  annEl.classList.add('show');
+}
+
+function activate(id){ applyActivation(id); history.pushState({ object:id }, '', objectURL(id)); }
+function clearActive(){
+  document.querySelectorAll('.pin.active').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.catalog-item.active').forEach(p=>p.classList.remove('active'));
+  annEl.classList.remove('show');
+}
+function closeAnnotation(){
+  clearActive();
+  const url = new URL(window.location.href); url.search = '';
+  history.pushState({}, '', url.toString());
+}
+window.addEventListener('popstate', ()=>{
+  const id = new URLSearchParams(window.location.search).get('object');
+  if(id && scene && scene.objects.find(o=>o.id===id)) applyActivation(id);
+  else clearActive();
+});
+document.getElementById('ann-close').addEventListener('click', closeAnnotation);
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeAnnotation(); });
+searchEl.addEventListener('input', ()=>Scene.search(searchEl.value));
+
+/* ---------------- toolbar + shift-click coordinate picker ---------------- */
+function wireInteractions(){
+  document.getElementById('zoom-in').addEventListener('click', ()=> osdViewer.viewport.zoomBy(1.3));
+  document.getElementById('zoom-out').addEventListener('click', ()=> osdViewer.viewport.zoomBy(1/1.3));
+  document.getElementById('fit').addEventListener('click', ()=> osdViewer.viewport.goHome());
+
+  osdViewer.addHandler('canvas-click', e => {
+    if(!e.originalEvent.shiftKey || e.quick === false) return;
+    const viewportPoint = osdViewer.viewport.pointFromPixel(e.position);
+    const imagePoint = osdViewer.viewport.viewportToImageCoordinates(viewportPoint);
+    const nx = clamp(imagePoint.x / SCENE_W, 0, 1), ny = clamp(imagePoint.y / SCENE_H, 0, 1);
+    navigator.clipboard?.writeText(`${nx.toFixed(3)}, ${ny.toFixed(3)}`).catch(()=>{});
+    const toast = document.getElementById('coord-toast');
+    toast.textContent = `x: ${nx.toFixed(3)}  y: ${ny.toFixed(3)}  (copied)`;
+    toast.style.opacity = '1';
+    clearTimeout(toast._t);
+    toast._t = setTimeout(()=>{ toast.style.opacity = '0'; }, 1800);
+  });
+}
+
+/* ---------------- init ---------------- */
+async function init(){
+  try {
+    const res = await fetch('scene.json');
+    if(!res.ok) throw new Error(`scene.json responded with HTTP ${res.status}`);
+    const data = await res.json();
+    await Scene.load(data);
+  } catch (err) {
+    console.error(err);
+    loadingEl.style.display = 'none';
+    document.getElementById('load-error').style.display = 'flex';
+    document.getElementById('load-error').innerHTML = `
+      <div class="box">
+        <h3>Couldn't load the scene</h3>
+        <p>${escapeHtml(err.message)}</p>
+        <p>If you opened this file directly (double-clicked it), browsers block <code>fetch()</code>
+           of local files for security reasons. Serve the folder instead, e.g. from a terminal in
+           this folder:</p>
+        <p><code>python3 -m http.server 8000</code></p>
+        <p>…then open <code>http://localhost:8000/viewer.html</code>. Also make sure
+           <code>scene.json</code> and the image it references (a plain image, or a
+           .dzi tile pyramid + its _files folder) are in the same folder as this file.</p>
+      </div>`;
+  }
+}
+function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+init();
+</script>
+</body>
+</html>

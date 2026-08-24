@@ -1,0 +1,152 @@
+/* ============================================================
+   UISP THEME LAYER
+   ============================================================
+   Everything about how the viewer LOOKS lives here — colors,
+   typography, sizes, icons, borders, shadows, animation.
+
+   Everything about how the viewer is STRUCTURED (flex layout,
+   positioning, z-index stacking) stays in viewer.html's own
+   inline <style>, since that's a rendering-mechanics concern,
+   not a presentation one. A different theme should never need
+   to touch viewer.html, and viewer.html should never need to
+   know what theme is loaded.
+
+   To make a new theme: copy this file, change the values below,
+   point viewer.html's <link rel="stylesheet"> at your copy.
+   ============================================================ */
+
+:root{
+  /* --- palette --- */
+  --bg:#141009;
+  --panel:#1c160e;
+  --panel2:#241b10;
+  --line:#3a2c17;
+  --text:#ece2cd;
+  --text-dim:#a2937a;
+  --brass:#c9a24d;
+  --brass-dim:#7d6532;
+  --brass-bright:#e2c26e;
+  --ink:#0c0906;
+
+  /* --- typography --- */
+  --serif:'Fraunces', Georgia, serif;
+  --mono:'IBM Plex Mono', ui-monospace, monospace;
+  --sans:'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-title:22px;
+  --font-body:12.5px;
+  --font-label:11px;
+
+  /* --- geometry / sizing --- */
+  --radius:3px;
+  --radius-lg:6px;
+  --sidebar-width:270px;
+  --annotation-width:300px;
+  --pin-size:26px;
+  --toolbar-btn-size:30px;
+}
+
+html,body{ color:var(--text); font-family:var(--sans); background:var(--bg); }
+
+header{
+  padding:16px 22px 14px;
+  border-bottom:1px solid var(--line);
+  background:linear-gradient(var(--panel), var(--bg));
+}
+.scene-id{
+  font-family:var(--mono); font-size:var(--font-label); letter-spacing:.08em; color:var(--brass);
+  border:1px solid var(--brass-dim); border-radius:2px; padding:3px 7px; white-space:nowrap;
+}
+header h1{ font-family:var(--serif); font-weight:600; font-size:var(--font-title); margin:0; letter-spacing:.01em; }
+header p{ margin:0; color:var(--text-dim); font-size:var(--font-body); max-width:520px; line-height:1.5; }
+
+aside{ width:var(--sidebar-width); border-right:1px solid var(--line); background:var(--panel); }
+aside h2{ font-family:var(--mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--text-dim); margin:0; padding:14px 16px 8px; }
+.search-wrap{ padding:0 16px 12px; }
+.search-wrap input{
+  width:100%; background:var(--ink); border:1px solid var(--line); color:var(--text);
+  padding:8px 10px; border-radius:var(--radius); font-family:var(--sans); font-size:13px;
+}
+.search-wrap input:focus-visible{ outline:2px solid var(--brass); outline-offset:1px; }
+.catalog-list{ padding:0 10px 14px; }
+.catalog-item{
+  width:100%; text-align:left; background:transparent; border:1px solid transparent;
+  border-radius:var(--radius); padding:9px 8px; cursor:pointer; display:block; color:var(--text);
+  font-family:var(--sans); margin-bottom:2px;
+}
+.catalog-item:hover{ background:var(--panel2); }
+.catalog-item.active{ background:var(--panel2); border-color:var(--brass-dim); }
+.catalog-item .cid{ font-family:var(--mono); font-size:10px; color:var(--brass); display:block; margin-bottom:2px; }
+.catalog-item .clabel{ font-size:13px; font-weight:500; }
+.catalog-item .ctype{ font-size:var(--font-label); color:var(--text-dim); text-transform:capitalize; }
+.catalog-item.dim{ opacity:.35; }
+.catalog-item:focus-visible{ outline:2px solid var(--brass); outline-offset:-1px; }
+
+.stage-wrap{ background:radial-gradient(ellipse at 50% 30%, #1a140c 0%, var(--bg) 70%); }
+.toolbar{
+  background:rgba(20,16,9,.85); border:1px solid var(--line); border-radius:var(--radius-lg);
+  padding:5px; backdrop-filter:blur(4px);
+}
+.toolbar button{
+  width:var(--toolbar-btn-size); height:var(--toolbar-btn-size); border:1px solid var(--line);
+  background:var(--panel2); color:var(--text); border-radius:4px; cursor:pointer;
+  font-family:var(--mono); font-size:14px; line-height:1;
+}
+.toolbar button:hover{ border-color:var(--brass-dim); color:var(--brass-bright); }
+.toolbar button:focus-visible{ outline:2px solid var(--brass); }
+
+/* --- pins: the "icon" layer --- */
+.pin{ width:var(--pin-size); height:var(--pin-size); }
+.pin .ring{
+  width:var(--pin-size); height:var(--pin-size); border-radius:50%; border:1.5px solid var(--brass);
+  background:rgba(201,162,77,.18); display:flex; align-items:center; justify-content:center;
+  font-family:var(--mono); font-size:10px; color:var(--brass-bright);
+  transition:background .15s, transform .15s; backdrop-filter:blur(1px);
+}
+.pin:hover .ring, .pin:focus-visible .ring{ background:rgba(201,162,77,.5); transform:scale(1.12); }
+.pin:focus-visible{ outline:none; }
+.pin:focus-visible .ring{ box-shadow:0 0 0 2px var(--brass); }
+.pin.active .ring{ background:var(--brass); color:var(--ink); }
+.pin.pulse .ring{ animation:uisp-pulse 1.1s ease-out 2; }
+.pin.dim{ opacity:.2; }
+@keyframes uisp-pulse{ 0%{ box-shadow:0 0 0 0 rgba(226,194,110,.65); } 100%{ box-shadow:0 0 0 16px rgba(226,194,110,0); } }
+@media (prefers-reduced-motion: reduce){ .pin.pulse .ring{ animation:none; } }
+
+#annotation{
+  width:var(--annotation-width); max-width:calc(100% - 28px); background:var(--panel);
+  border:1px solid var(--line); border-radius:var(--radius-lg); padding:14px 16px;
+  box-shadow:0 8px 24px rgba(0,0,0,.4);
+}
+#annotation .aid{ font-family:var(--mono); font-size:10px; color:var(--brass); }
+#annotation h3{ font-family:var(--serif); font-size:17px; margin:4px 0 2px; }
+#annotation .atype{ font-size:var(--font-label); color:var(--text-dim); text-transform:capitalize; margin-bottom:8px; display:block; }
+#annotation p{ font-size:13px; line-height:1.55; color:var(--text); margin:0 0 10px; }
+#annotation button{
+  font-family:var(--sans); font-size:12px; border-radius:4px; padding:6px 10px; cursor:pointer;
+  border:1px solid var(--line); background:var(--panel2); color:var(--text);
+}
+#annotation button.primary{ background:var(--brass); color:var(--ink); border-color:var(--brass); font-weight:600; }
+#annotation button:hover{ border-color:var(--brass-dim); }
+#annotation .close{ color:var(--text-dim); font-size:16px; }
+
+.hint{
+  font-family:var(--mono); font-size:10.5px; color:var(--text-dim); background:rgba(20,16,9,.7);
+  border:1px solid var(--line); border-radius:4px; padding:5px 9px;
+}
+#coord-toast{
+  font-family:var(--mono); font-size:12px; color:var(--ink); background:var(--brass);
+  border-radius:4px; padding:6px 10px;
+}
+
+#loading{ background:var(--bg); }
+#loading .spinner{ width:28px; height:28px; border:2.5px solid var(--line); border-top-color:var(--brass); border-radius:50%; animation:uisp-spin .8s linear infinite; }
+#loading span{ font-family:var(--mono); font-size:11px; color:var(--text-dim); }
+@keyframes uisp-spin{ to{ transform:rotate(360deg); } }
+
+#load-error{ background:var(--bg); padding:40px; }
+#load-error .box{ max-width:460px; border:1px solid var(--line); background:var(--panel); border-radius:var(--radius-lg); padding:22px 26px; text-align:left; }
+#load-error h3{ font-family:var(--serif); font-size:18px; margin:0 0 10px; color:var(--brass-bright); }
+#load-error p{ font-size:13px; line-height:1.6; color:var(--text-dim); margin:0 0 10px; }
+#load-error code{ background:var(--ink); color:var(--brass-bright); padding:2px 6px; border-radius:3px; font-family:var(--mono); font-size:12px; }
+
+::-webkit-scrollbar{ width:8px; }
+::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }

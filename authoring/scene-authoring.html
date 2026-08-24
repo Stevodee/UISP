@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UISP — Scene Authoring</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#141009; --panel:#1c160e; --panel2:#241b10; --line:#3a2c17;
+    --text:#ece2cd; --text-dim:#a2937a; --brass:#c9a24d; --brass-dim:#7d6532; --brass-bright:#e2c26e;
+    --ink:#0c0906; --good:#7fae7a; --warn:#c98a4d; --face:#8db3e0;
+    --serif:'Fraunces', Georgia, serif; --mono:'IBM Plex Mono', ui-monospace, monospace; --sans:'Inter', sans-serif;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; background:var(--bg); color:var(--text); font-family:var(--sans); min-height:100%; }
+  header{ padding:20px 24px 16px; border-bottom:1px solid var(--line); background:linear-gradient(var(--panel),var(--bg)); }
+  header .tag{ font-family:var(--mono); font-size:10.5px; letter-spacing:.1em; color:var(--brass); text-transform:uppercase; }
+  header h1{ font-family:var(--serif); font-weight:600; font-size:21px; margin:6px 0 4px; }
+  header p{ margin:0; color:var(--text-dim); font-size:12.5px; max-width:700px; line-height:1.55; }
+  header p code{ background:var(--ink); padding:1px 5px; border-radius:3px; font-family:var(--mono); font-size:11.5px; }
+
+  .layout{ display:flex; align-items:flex-start; flex-wrap:wrap; }
+  .col-left{ width:290px; flex:none; border-right:1px solid var(--line); min-height:calc(100vh - 110px); padding:18px; }
+  .col-main{ flex:1; min-width:340px; padding:18px; }
+  .col-right{ width:350px; flex:none; border-left:1px solid var(--line); min-height:calc(100vh - 110px); padding:18px; }
+
+  h2.section{ font-family:var(--mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--text-dim); margin:18px 0 10px; }
+  h2.section:first-child{ margin-top:0; }
+  label.field-label{ display:block; font-size:11.5px; color:var(--text-dim); margin:12px 0 5px; }
+  input[type="text"], textarea, select{
+    width:100%; background:var(--ink); border:1px solid var(--line); color:var(--text);
+    padding:7px 8px; border-radius:3px; font-family:var(--sans); font-size:13px;
+  }
+  textarea{ resize:vertical; }
+  .dropzone{
+    border:1.5px dashed var(--line); border-radius:6px; padding:20px 14px; text-align:center;
+    color:var(--text-dim); font-size:12.5px; cursor:pointer;
+  }
+  .dropzone.drag{ border-color:var(--brass); background:var(--panel2); color:var(--brass-bright); }
+  .dropzone input{ display:none; }
+  .range-row{ display:flex; align-items:center; gap:8px; }
+  .range-row span{ font-family:var(--mono); font-size:11px; color:var(--brass); width:34px; text-align:right; }
+  .checkbox-line{ display:flex; align-items:center; gap:7px; cursor:pointer; font-size:12.5px; margin-top:14px; }
+  .checkbox-line input{ width:auto; }
+  .subnote{ font-size:10.5px; color:var(--text-dim); line-height:1.5; margin-top:2px; }
+
+  button{
+    font-family:var(--sans); font-size:13px; border-radius:4px; padding:8px 14px; cursor:pointer;
+    border:1px solid var(--line); background:var(--panel2); color:var(--text);
+  }
+  button:hover{ border-color:var(--brass-dim); }
+  button.primary{ background:var(--brass); color:var(--ink); border-color:var(--brass); font-weight:600; }
+  button.primary:disabled{ opacity:.4; cursor:not-allowed; }
+  button.danger{ border-color:#7a3a2e; color:#d9846a; background:transparent; }
+  button.block{ width:100%; margin-top:6px; }
+  button.small{ padding:4px 9px; font-size:11.5px; }
+
+  #status{ font-family:var(--mono); font-size:11px; color:var(--text-dim); margin-top:10px; line-height:1.6; min-height:28px; }
+  #status.ok{ color:var(--good); }
+  #status.error{ color:#d9846a; }
+  #progress-bar{ height:4px; background:var(--line); border-radius:2px; overflow:hidden; margin-top:6px; display:none; }
+  #progress-bar .fill{ height:100%; background:var(--brass); width:0%; transition:width .2s; }
+
+  .canvas-wrap{ position:relative; display:inline-block; max-width:100%; }
+  canvas{ max-width:100%; border:1px solid var(--line); border-radius:6px; display:block; cursor:crosshair; }
+  .canvas-hint{ font-family:var(--mono); font-size:11px; color:var(--text-dim); margin-top:8px; }
+  .empty-state{ color:var(--text-dim); font-size:13px; padding:60px 20px; text-align:center; border:1px dashed var(--line); border-radius:6px; }
+
+  .obj-row{
+    display:flex; justify-content:space-between; align-items:center; gap:8px;
+    padding:7px 8px; border-radius:4px; cursor:pointer; font-size:12px; border:1px solid transparent;
+  }
+  .obj-row:hover{ background:var(--panel2); }
+  .obj-row.active{ background:var(--panel2); border-color:var(--brass-dim); }
+  .obj-row.excluded{ opacity:.4; }
+  .obj-row .oleft{ display:flex; align-items:center; gap:7px; overflow:hidden; }
+  .obj-row .oleft input{ width:auto; flex:none; }
+  .obj-row .olabel{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .src-badge{ font-family:var(--mono); font-size:9px; padding:1px 5px; border-radius:3px; flex:none; }
+  .src-badge.manual{ background:rgba(201,162,77,.15); color:var(--brass); }
+  .src-badge.ai{ background:rgba(127,174,122,.15); color:var(--good); }
+  .src-badge.face{ background:rgba(141,179,224,.15); color:var(--face); }
+  .src-badge.imported{ background:rgba(162,147,122,.15); color:var(--text-dim); }
+  .obj-list{ max-height:220px; overflow-y:auto; }
+
+  .detail-panel{ border-top:1px solid var(--line); padding-top:14px; margin-top:14px; }
+  .detail-panel.empty{ color:var(--text-dim); font-size:12.5px; padding:16px 0; text-align:center; }
+  .actions-row{ display:flex; flex-wrap:wrap; gap:10px; margin-top:6px; }
+  .actions-row label{ display:flex; align-items:center; gap:5px; font-size:12px; color:var(--text); }
+  .actions-row input{ width:auto; }
+  .loc-readout{ font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:8px; }
+
+  #json-preview{
+    width:100%; height:150px; background:var(--ink); color:var(--brass-bright); font-family:var(--mono);
+    font-size:11px; border:1px solid var(--line); border-radius:4px; padding:10px; resize:vertical; margin-top:10px;
+  }
+  .btn-row{ display:flex; gap:8px; margin-top:10px; }
+  .count-pill{ font-family:var(--mono); font-size:10.5px; color:var(--brass); font-weight:normal; text-transform:none; letter-spacing:0; }
+</style>
+</head>
+<body>
+<header>
+  <span class="tag">UISP · Authoring Module</span>
+  <h1>Scene Authoring</h1>
+  <p>One tool for labeling: run open-source AI detection for a first pass, then click to add, correct, or
+     remove points by hand — all in one editable list. Nothing is final until you export.
+     Output is a complete <code>scene.json</code>, ready to drop into your project folder.</p>
+</header>
+
+<div class="layout">
+
+  <div class="col-left">
+    <h2 class="section" style="margin-top:0;">0 · Continue Editing <span style="font-weight:400; color:var(--text-dim);">(optional)</span></h2>
+    <div class="dropzone" id="scene-dropzone">
+      Drop an existing scene.json here<br>to keep adding to it
+      <input type="file" id="scene-file-input" accept="application/json,.json">
+    </div>
+    <div class="subnote">Load your photo below too — the objects will land back exactly where you placed them.</div>
+
+    <h2 class="section">1 · Scene</h2>
+    <label class="field-label">Title</label>
+    <input type="text" id="scene-title" value="Untitled Scene">
+    <label class="field-label">Description</label>
+    <textarea id="scene-desc" rows="3" placeholder="One or two sentences about this scene."></textarea>
+
+    <h2 class="section">2 · Image</h2>
+    <div class="dropzone" id="dropzone">
+      Drop an image here<br>or click to choose a file
+      <input type="file" id="file-input" accept="image/*">
+    </div>
+    <label class="field-label">Filename in scene.json (media.src)</label>
+    <input type="text" id="image-filename" placeholder="e.g. desk-photo.jpg">
+
+    <h2 class="section">3 · AI Detection <span style="font-weight:400; color:var(--text-dim);">(optional)</span></h2>
+    <label class="field-label">Object detector</label>
+    <select id="model-select">
+      <option value="Xenova/yolos-tiny">YOLOS-tiny — fast, ~25MB</option>
+      <option value="Xenova/detr-resnet-50">DETR ResNet-50 — accurate, ~160MB</option>
+    </select>
+    <label class="field-label">Confidence threshold</label>
+    <div class="range-row">
+      <input type="range" id="threshold" min="0.2" max="0.9" step="0.05" value="0.5">
+      <span id="threshold-val">0.50</span>
+    </div>
+    <label class="checkbox-line">
+      <input type="checkbox" id="face-toggle">
+      Also detect faces (BlazeFace)
+    </label>
+    <div class="subnote">Presence only — no identity, no naming, no matching.</div>
+
+    <button class="primary block" id="detect-btn" disabled style="margin-top:14px;">Run Detection</button>
+    <div id="status">Load an image to begin. AI detection is optional — you can label everything by hand instead.</div>
+    <div id="progress-bar"><div class="fill" id="progress-fill"></div></div>
+  </div>
+
+  <div class="col-main">
+    <h2 class="section">4 · Review &amp; place</h2>
+    <div id="canvas-area"><div class="empty-state">No image loaded yet</div></div>
+    <div class="canvas-hint" id="canvas-hint" style="display:none;">Drag to draw a box around something · click (no drag) to drop a plain point · click an existing pin/box to edit it</div>
+  </div>
+
+  <div class="col-right">
+    <h2 class="section">Objects <span class="count-pill" id="count-pill"></span></h2>
+    <div class="obj-list" id="obj-list"><div class="empty-state" style="padding:20px 10px;">None yet</div></div>
+
+    <div id="detail-panel" class="detail-panel empty">Click a point on the image, run detection, or select an object above.</div>
+
+    <h2 class="section">5 · Export</h2>
+    <div class="btn-row">
+      <button id="copy-btn" style="flex:1;">Copy JSON</button>
+      <button id="download-btn" style="flex:1;">Download scene.json</button>
+    </div>
+    <textarea id="json-preview" readonly></textarea>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.1.0/dist/blazeface.min.js"></script>
+<script type="module">
+import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
+env.allowLocalModels = false;
+
+const el = id => document.getElementById(id);
+const dropzone = el('dropzone'), fileInput = el('file-input');
+const modelSelect = el('model-select'), thresholdInput = el('threshold'), thresholdVal = el('threshold-val');
+const detectBtn = el('detect-btn'), statusEl = el('status');
+const progressBar = el('progress-bar'), progressFill = el('progress-fill');
+const canvasArea = el('canvas-area'), canvasHint = el('canvas-hint');
+const objListEl = el('obj-list'), countPill = el('count-pill'), detailPanel = el('detail-panel');
+const jsonPreview = el('json-preview');
+const sceneTitleEl = el('scene-title'), sceneDescEl = el('scene-desc'), imageFilenameEl = el('image-filename');
+
+let imgURL = null, naturalW = 0, naturalH = 0, loadedImg = null;
+let canvas, ctx;
+let objects = []; // {id,label,type,x,y,description,tags:[],actions:[],linkUrl,source,score,included,box}
+let selectedId = null;
+let manualCounter = 0;
+let pendingImportObjects = null;
+let detector = null, currentModelName = null, faceDetector = null;
+
+/* ============================================================
+   Import an existing scene.json to keep editing it
+   ============================================================ */
+const sceneDropzone = el('scene-dropzone'), sceneFileInput = el('scene-file-input');
+sceneDropzone.addEventListener('click', () => sceneFileInput.click());
+sceneDropzone.addEventListener('dragover', e => { e.preventDefault(); sceneDropzone.classList.add('drag'); });
+sceneDropzone.addEventListener('dragleave', () => sceneDropzone.classList.remove('drag'));
+sceneDropzone.addEventListener('drop', e => { e.preventDefault(); sceneDropzone.classList.remove('drag'); if(e.dataTransfer.files[0]) readSceneFile(e.dataTransfer.files[0]); });
+sceneFileInput.addEventListener('change', e => { if(e.target.files[0]) readSceneFile(e.target.files[0]); });
+
+function readSceneFile(file){
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      importScene(data);
+    } catch (err) {
+      setStatus('Could not parse that file as scene.json: ' + err.message, 'error');
+    }
+  };
+  reader.readAsText(file);
+}
+
+function importScene(data){
+  sceneTitleEl.value = data.title || '';
+  sceneDescEl.value = data.description || '';
+  if (data.media && data.media[0]) imageFilenameEl.value = data.media[0].src || '';
+
+  // Anything already in a saved scene.json has already passed human review once —
+  // treat it as curated, not as a live AI suggestion that re-detection can wipe.
+  const imported = (data.objects || []).map(o => ({
+    id: o.id, label: o.label, type: o.type,
+    x: (o.location && o.location.x) ?? 0.5, y: (o.location && o.location.y) ?? 0.5,
+    description: o.description || '', tags: o.tags || [], actions: o.actions || ['highlight','showAnnotation'],
+    linkUrl: (o.links && o.links.url) || '',
+    source: 'imported', score: typeof o.aiConfidence === 'number' ? o.aiConfidence : null,
+    included: true, box: null
+  }));
+
+  if (loadedImg) {
+    objects = imported; selectedId = null;
+    renderList(); renderDetail(); redraw(); updateJSON();
+    setStatus(`Imported ${imported.length} object(s) from scene.json.`, 'ok');
+  } else {
+    pendingImportObjects = imported;
+    setStatus(`Loaded ${imported.length} object(s) — now load the matching image to see them placed.`, 'ok');
+  }
+}
+
+/* ============================================================
+   Image loading
+   ============================================================ */
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e => { e.preventDefault(); dropzone.classList.remove('drag'); if(e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
+fileInput.addEventListener('change', e => { if(e.target.files[0]) loadFile(e.target.files[0]); });
+
+function loadFile(file){
+  if (!file.type.startsWith('image/')) { setStatus('Please choose an image file.', 'error'); return; }
+  if (imgURL) URL.revokeObjectURL(imgURL);
+  imgURL = URL.createObjectURL(file);
+  imageFilenameEl.value = file.name;
+  if (!pendingImportObjects) { objects = []; selectedId = null; renderList(); renderDetail(); updateJSON(); }
+
+  const probe = new Image();
+  probe.onload = () => {
+    naturalW = probe.naturalWidth; naturalH = probe.naturalHeight;
+    loadedImg = probe;
+    setupCanvas(probe);
+    detectBtn.disabled = false;
+    canvasHint.style.display = 'block';
+    if (pendingImportObjects) {
+      objects = pendingImportObjects; pendingImportObjects = null; selectedId = null;
+      renderList(); renderDetail(); redraw(); updateJSON();
+      setStatus(`Loaded ${file.name} (${naturalW}×${naturalH}) with ${objects.length} imported object(s).`, 'ok');
+    } else {
+      setStatus(`Loaded ${file.name} (${naturalW}×${naturalH}).`);
+    }
+  };
+  probe.src = imgURL;
+}
+
+function setupCanvas(img){
+  canvasArea.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.className = 'canvas-wrap';
+  canvas = document.createElement('canvas');
+  ctx = canvas.getContext('2d');
+  const maxW = 720;
+  const s = Math.min(1, maxW / naturalW);
+  canvas.width = naturalW * s;
+  canvas.height = naturalH * s;
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  canvas.addEventListener('pointerdown', onCanvasPointerDown);
+  canvas.addEventListener('pointermove', onCanvasPointerMove);
+  canvas.addEventListener('pointerup', onCanvasPointerUp);
+  wrap.appendChild(canvas);
+  canvasArea.appendChild(wrap);
+  redraw();
+}
+
+/* ============================================================
+   Manual placement / selection — drag to draw a box (like the AI
+   detections), or a small click/tap still drops a plain point.
+   ============================================================ */
+let isDrawing = false, drawStart = null, drawCurrent = null;
+
+function canvasPos(e){
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: (e.clientX - rect.left) * (canvas.width / rect.width),
+    y: (e.clientY - rect.top) * (canvas.height / rect.height)
+  };
+}
+
+function onCanvasPointerDown(e){
+  const p = canvasPos(e);
+  const hit = objects.find(o => {
+    const px = o.x*canvas.width, py = o.y*canvas.height;
+    return Math.hypot(px-p.x, py-p.y) < 12;
+  });
+  if (hit) { selectedId = hit.id; renderList(); renderDetail(); redraw(); return; }
+
+  isDrawing = true;
+  drawStart = p; drawCurrent = p;
+  canvas.setPointerCapture(e.pointerId);
+}
+
+function onCanvasPointerMove(e){
+  if (!isDrawing) return;
+  drawCurrent = canvasPos(e);
+  redraw();
+}
+
+function onCanvasPointerUp(e){
+  if (!isDrawing) return;
+  isDrawing = false;
+  const end = canvasPos(e);
+  const dragDist = Math.hypot(end.x - drawStart.x, end.y - drawStart.y);
+
+  let x, y, box = null;
+  if (dragDist < 6) {
+    x = drawStart.x / canvas.width; y = drawStart.y / canvas.height;
+  } else {
+    const x0 = Math.min(drawStart.x, end.x), x1 = Math.max(drawStart.x, end.x);
+    const y0 = Math.min(drawStart.y, end.y), y1 = Math.max(drawStart.y, end.y);
+    box = { x: x0/canvas.width, y: y0/canvas.height, w: (x1-x0)/canvas.width, h: (y1-y0)/canvas.height };
+    x = box.x + box.w/2; y = box.y + box.h/2;
+  }
+
+  const obj = {
+    id: 'obj.manual-' + Date.now().toString(36), label: 'New object', type: 'object',
+    x, y, description: '', tags: ['manual'], actions: ['highlight','showAnnotation'], linkUrl: '',
+    source: 'manual', score: null, included: true, box
+  };
+  objects.push(obj);
+  selectedId = obj.id;
+  drawStart = null; drawCurrent = null;
+  renderList(); renderDetail(); redraw(); updateJSON();
+}
+
+/* ============================================================
+   AI detection
+   ============================================================ */
+thresholdInput.addEventListener('input', () => { thresholdVal.textContent = parseFloat(thresholdInput.value).toFixed(2); });
+
+async function ensureModel(){
+  const wanted = modelSelect.value;
+  if (detector && currentModelName === wanted) return detector;
+  setStatus(`Loading model: ${wanted} …`);
+  progressBar.style.display = 'block'; progressFill.style.width = '0%';
+  detector = await pipeline('object-detection', wanted, {
+    progress_callback: p => { if (p.status === 'progress' && p.total) progressFill.style.width = Math.round((p.loaded/p.total)*100) + '%'; }
+  });
+  currentModelName = wanted;
+  progressBar.style.display = 'none';
+  return detector;
+}
+
+async function ensureFaceModel(){
+  if (faceDetector) return faceDetector;
+  setStatus('Loading face detector (BlazeFace)…');
+  faceDetector = await window.blazeface.load();
+  return faceDetector;
+}
+
+async function runFaceDetection(){
+  const model = await ensureFaceModel();
+  const preds = await model.estimateFaces(loadedImg, false);
+  return preds.map((p, i) => {
+    const [x0,y0] = p.topLeft, [x1,y1] = p.bottomRight;
+    return {
+      id: 'obj.face-' + (i+1), label: 'Face ' + (i+1), type: 'face',
+      x: ((x0+x1)/2)/naturalW, y: ((y0+y1)/2)/naturalH,
+      description: '', tags: ['face-detected'], actions: ['highlight','showAnnotation'], linkUrl: '',
+      box: { x: x0/naturalW, y: y0/naturalH, w: (x1-x0)/naturalW, h: (y1-y0)/naturalH },
+      score: Array.isArray(p.probability) ? p.probability[0] : p.probability,
+      source: 'face', included: true
+    };
+  });
+}
+
+function capitalize(s){ return s.replace(/\b\w/g, c => c.toUpperCase()); }
+
+detectBtn.addEventListener('click', async () => {
+  if (!imgURL) return;
+  detectBtn.disabled = true;
+  try {
+    const model = await ensureModel();
+    setStatus('Running object detection…');
+    const threshold = parseFloat(thresholdInput.value);
+    const output = await model(imgURL, { threshold });
+    const aiResults = output.map((det, i) => ({
+      id: 'obj.ai-' + i, label: capitalize(det.label), type: det.label,
+      x: ((det.box.xmin+det.box.xmax)/2)/naturalW, y: ((det.box.ymin+det.box.ymax)/2)/naturalH,
+      description: '', tags: ['ai-suggested'], actions: ['highlight','showAnnotation'], linkUrl: '',
+      box: {
+        x: det.box.xmin/naturalW, y: det.box.ymin/naturalH,
+        w: (det.box.xmax-det.box.xmin)/naturalW, h: (det.box.ymax-det.box.ymin)/naturalH
+      },
+      score: det.score, source: 'ai', included: det.score >= 0.7
+    }));
+
+    let faceResults = [];
+    if (el('face-toggle').checked) {
+      setStatus('Running face detection…');
+      faceResults = await runFaceDetection();
+    }
+
+    const keepOnDetect = objects.filter(o => o.source === 'manual' || o.source === 'imported');
+    objects = keepOnDetect.concat(aiResults, faceResults);
+    if (!objects.find(o => o.id === selectedId)) selectedId = null;
+
+    setStatus(`Found ${aiResults.length} object(s)${faceResults.length ? ' and ' + faceResults.length + ' face(s)' : ''}. Review before exporting.`, 'ok');
+    renderList(); renderDetail(); redraw(); updateJSON();
+  } catch (err) {
+    console.error(err);
+    setStatus('Detection failed: ' + err.message, 'error');
+  } finally {
+    detectBtn.disabled = false;
+  }
+});
+
+/* ============================================================
+   Canvas rendering
+   ============================================================ */
+function redraw(){
+  if (!imgURL) return;
+  const img = new Image();
+  img.onload = () => {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    objects.forEach(o => {
+      if (!o.included) return;
+      const active = o.id === selectedId;
+      const color = o.source === 'manual' ? '#c9a24d' : o.source === 'face' ? '#8db3e0' : o.source === 'imported' ? '#a2937a' : '#7fae7a';
+      if (o.box) {
+        ctx.strokeStyle = color; ctx.lineWidth = active ? 2.5 : 1.5;
+        ctx.strokeRect(o.box.x*canvas.width, o.box.y*canvas.height, o.box.w*canvas.width, o.box.h*canvas.height);
+      }
+      const px = o.x*canvas.width, py = o.y*canvas.height;
+      ctx.beginPath();
+      ctx.arc(px, py, active ? 8 : 6, 0, Math.PI*2);
+      ctx.fillStyle = active ? '#e2c26e' : color;
+      ctx.fill();
+      ctx.lineWidth = active ? 2.5 : 1.5;
+      ctx.strokeStyle = '#0c0906';
+      ctx.stroke();
+      ctx.font = '10px IBM Plex Mono, monospace';
+      const label = o.label;
+      const tw = ctx.measureText(label).width;
+      ctx.fillStyle = 'rgba(12,9,6,0.8)';
+      ctx.fillRect(px+9, py-16, tw+8, 15);
+      ctx.fillStyle = '#e2c26e';
+      ctx.fillText(label, px+13, py-5);
+    });
+    if (isDrawing && drawStart && drawCurrent) {
+      const x0 = Math.min(drawStart.x, drawCurrent.x), y0 = Math.min(drawStart.y, drawCurrent.y);
+      const w = Math.abs(drawCurrent.x - drawStart.x), h = Math.abs(drawCurrent.y - drawStart.y);
+      ctx.save();
+      ctx.strokeStyle = '#e2c26e';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5,4]);
+      ctx.strokeRect(x0, y0, w, h);
+      ctx.restore();
+    }
+  };
+  img.src = imgURL;
+}
+
+/* ============================================================
+   Object list + detail panel
+   ============================================================ */
+function renderList(){
+  countPill.textContent = objects.length ? `${objects.filter(o=>o.included).length}/${objects.length} included` : '';
+  if (objects.length === 0) { objListEl.innerHTML = '<div class="empty-state" style="padding:20px 10px;">None yet</div>'; return; }
+  objListEl.innerHTML = '';
+  objects.forEach(o => {
+    const row = document.createElement('div');
+    row.className = 'obj-row' + (o.id === selectedId ? ' active' : '') + (o.included ? '' : ' excluded');
+
+    const left = document.createElement('div');
+    left.className = 'oleft';
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.checked = o.included;
+    cb.addEventListener('click', e => e.stopPropagation());
+    cb.addEventListener('change', () => { o.included = cb.checked; row.classList.toggle('excluded', !cb.checked); redraw(); updateJSON(); renderList(); });
+    left.appendChild(cb);
+
+    const badge = document.createElement('span');
+    badge.className = 'src-badge ' + o.source;
+    badge.textContent = o.source === 'ai' || o.source === 'face' ? o.source + ' ' + Math.round(o.score*100) + '%' : o.source === 'imported' ? 'imported' : 'manual';
+    left.appendChild(badge);
+
+    const lbl = document.createElement('span');
+    lbl.className = 'olabel'; lbl.textContent = o.label;
+    left.appendChild(lbl);
+
+    row.appendChild(left);
+    row.addEventListener('click', () => { selectedId = o.id; renderList(); renderDetail(); redraw(); });
+    objListEl.appendChild(row);
+  });
+}
+
+function renderDetail(){
+  const o = objects.find(x => x.id === selectedId);
+  if (!o) { detailPanel.className = 'detail-panel empty'; detailPanel.textContent = 'Click a point on the image, run detection, or select an object above.'; return; }
+  detailPanel.className = 'detail-panel';
+  detailPanel.innerHTML = '';
+
+  detailPanel.appendChild(field('ID', o.id, v => { o.id = v; }, true));
+  detailPanel.appendChild(field('Label', o.label, v => { o.label = v; renderList(); redraw(); }));
+  detailPanel.appendChild(field('Type', o.type, v => { o.type = v; }));
+  detailPanel.appendChild(fieldArea('Description', o.description, v => { o.description = v; }));
+  detailPanel.appendChild(field('Tags (comma-separated)', o.tags.join(', '), v => { o.tags = v.split(',').map(s=>s.trim()).filter(Boolean); }));
+
+  const actionsLabel = document.createElement('label');
+  actionsLabel.className = 'field-label'; actionsLabel.textContent = 'Actions';
+  detailPanel.appendChild(actionsLabel);
+  const actionsRow = document.createElement('div');
+  actionsRow.className = 'actions-row';
+  ['highlight','showAnnotation','zoom','openURL'].forEach(a => {
+    const lbl = document.createElement('label');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.checked = o.actions.includes(a);
+    cb.addEventListener('change', () => {
+      if (cb.checked && !o.actions.includes(a)) o.actions.push(a);
+      if (!cb.checked) o.actions = o.actions.filter(x => x !== a);
+      renderDetail(); updateJSON();
+    });
+    lbl.appendChild(cb); lbl.append(a);
+    actionsRow.appendChild(lbl);
+  });
+  detailPanel.appendChild(actionsRow);
+
+  if (o.actions.includes('openURL')) detailPanel.appendChild(field('Link URL', o.linkUrl, v => { o.linkUrl = v; }));
+
+  const loc = document.createElement('div');
+  loc.className = 'loc-readout';
+  loc.textContent = `location: x ${o.x.toFixed(3)}, y ${o.y.toFixed(3)}  ·  source: ${o.source}${o.score!==null?' ('+Math.round(o.score*100)+'%)':''}`;
+  detailPanel.appendChild(loc);
+
+  const delBtn = document.createElement('button');
+  delBtn.className = 'danger block'; delBtn.style.marginTop='12px'; delBtn.textContent = 'Delete this object';
+  delBtn.addEventListener('click', () => {
+    objects = objects.filter(x => x.id !== o.id);
+    selectedId = null;
+    renderList(); renderDetail(); redraw(); updateJSON();
+  });
+  detailPanel.appendChild(delBtn);
+
+  updateJSON();
+}
+
+function field(labelText, value, onChange, mono){
+  const wrap = document.createElement('div');
+  const lbl = document.createElement('label'); lbl.className = 'field-label'; lbl.textContent = labelText;
+  const input = document.createElement('input'); input.type = 'text'; input.value = value;
+  if (mono) input.style.fontFamily = 'var(--mono)';
+  input.addEventListener('input', () => { onChange(input.value); updateJSON(); });
+  wrap.appendChild(lbl); wrap.appendChild(input);
+  return wrap;
+}
+function fieldArea(labelText, value, onChange){
+  const wrap = document.createElement('div');
+  const lbl = document.createElement('label'); lbl.className = 'field-label'; lbl.textContent = labelText;
+  const area = document.createElement('textarea'); area.rows = 2; area.value = value;
+  area.addEventListener('input', () => { onChange(area.value); updateJSON(); });
+  wrap.appendChild(lbl); wrap.appendChild(area);
+  return wrap;
+}
+
+/* ============================================================
+   Export
+   ============================================================ */
+function round3(n){ return Math.round(n*1000)/1000; }
+
+function buildScene(){
+  return {
+    title: sceneTitleEl.value || 'Untitled Scene',
+    description: sceneDescEl.value || '',
+    media: [{ id: 'media.main', type: 'image', src: imageFilenameEl.value || 'image.jpg' }],
+    objects: objects.filter(o => o.included).map(o => {
+      const out = {
+        id: o.id, label: o.label, type: o.type,
+        location: { x: round3(o.x), y: round3(o.y) },
+        description: o.description || '', tags: o.tags, actions: o.actions
+      };
+      if (o.actions.includes('openURL') && o.linkUrl) out.links = { url: o.linkUrl };
+      if (o.score !== null) out.aiConfidence = Math.round(o.score*100)/100;
+      return out;
+    })
+  };
+}
+
+function updateJSON(){ jsonPreview.value = JSON.stringify(buildScene(), null, 2); }
+sceneTitleEl.addEventListener('input', updateJSON);
+sceneDescEl.addEventListener('input', updateJSON);
+imageFilenameEl.addEventListener('input', updateJSON);
+
+el('copy-btn').addEventListener('click', () => { navigator.clipboard.writeText(jsonPreview.value); });
+el('download-btn').addEventListener('click', () => {
+  const blob = new Blob([jsonPreview.value], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'scene.json';
+  a.click();
+});
+
+function setStatus(msg, kind){ statusEl.textContent = msg; statusEl.className = kind || ''; }
+updateJSON();
+</script>
+</body>
+</html>
