@@ -1,0 +1,27 @@
+{
+  "title": "Panorama Fix Test",
+  "description": "Confirming the toolbar/shift-click fixes plus the new multi-level tile adapter against a real panorama.",
+  "media": [
+    {
+      "id": "media.main",
+      "type": "panorama",
+      "src": "https://ik.imagekit.io/jydzbhzdv/3840x1920/IMG_20260913_233615_00_021_PureShot.jpg",
+      "sources": {
+        "thumb": "https://ik.imagekit.io/jydzbhzdv/3840x1920/IMG_20260913_233615_00_021_PureShot.jpg?tr=w-960,h-480",
+        "mobile": "https://ik.imagekit.io/jydzbhzdv/3840x1920/IMG_20260913_233615_00_021_PureShot.jpg?tr=w-1920,h-960",
+        "full": "https://ik.imagekit.io/jydzbhzdv/3840x1920/IMG_20260913_233615_00_021_PureShot.jpg"
+      }
+    }
+  ],
+  "objects": [
+    {
+      "id": "obj.test-0",
+      "label": "Test marker",
+      "type": "instrument",
+      "location": { "yaw": 0, "pitch": 0 },
+      "description": "Placed at center to confirm markers render at all.",
+      "tags": ["test"],
+      "actions": ["highlight", "showAnnotation"]
+    }
+  ]
+}

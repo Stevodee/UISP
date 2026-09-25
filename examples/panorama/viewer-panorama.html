@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UISP — Panorama Viewer (Phase 3 Prototype)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/core@5.7.1/index.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/markers-plugin@5.7.1/index.css">
+<style>
+  /* Structural CSS only — same split as index.html: layout mechanics here,
+     look-and-feel in theme.css. This file is a prototype, not yet
+     consolidated into index.html — media.type="panorama" uses a
+     fundamentally different coordinate system (yaw/pitch, not normalized
+     x/y) so Scene.goto needs real validation here before merging. */
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; overflow:hidden; }
+  .app{ display:flex; flex-direction:column; height:100%; }
+  header{ display:flex; align-items:baseline; gap:16px; flex-wrap:wrap; }
+  .body{ flex:1; display:flex; min-height:0; }
+  aside{ flex:none; display:flex; flex-direction:column; min-height:0; }
+  .catalog-list{ flex:1; overflow-y:auto; }
+  .stage-wrap{ flex:1; position:relative; min-width:0; }
+  .toolbar{ position:absolute; top:14px; right:14px; z-index:9999; display:flex; gap:6px; }
+  #psv{ position:absolute; inset:0; }
+  #annotation{ position:absolute; left:14px; bottom:14px; z-index:9999; display:none; }
+  #annotation.show{ display:block; }
+  #annotation .arow{ display:flex; gap:8px; flex-wrap:wrap; }
+  #annotation .close{ position:absolute; top:8px; right:10px; border:none; background:none; cursor:pointer; }
+  .hint{ position:absolute; left:14px; top:14px; z-index:5; pointer-events:none; }
+  #coord-toast{ position:absolute; left:14px; bottom:14px; z-index:7; opacity:0; transition:opacity .2s; pointer-events:none; }
+  #loading{ position:absolute; inset:0; z-index:9; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:10px; }
+  #load-error{ position:absolute; inset:0; z-index:8; display:flex; align-items:center; justify-content:center; }
+
+  /* Reuse the exact .pin/.ring look from theme.css for PSV markers, so
+     hotspots look identical to Phase 1/2 despite a totally different
+     renderer underneath. */
+  .psv-marker.pin{ width:var(--pin-size,26px); height:var(--pin-size,26px); }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <span class="scene-id" id="scene-id">SCENE —</span>
+    <div>
+      <h1 id="scene-title">Loading…</h1>
+      <p id="scene-desc"></p>
+    </div>
+  </header>
+
+  <div class="body">
+    <aside>
+      <h2>Catalog</h2>
+      <div class="search-wrap"><input id="search" type="text" placeholder="Search objects…" aria-label="Search scene objects"></div>
+      <div class="catalog-list" id="catalog-list"></div>
+    </aside>
+
+    <div class="stage-wrap">
+      <div class="hint">drag to look around · scroll / pinch to zoom · shift+click to copy yaw/pitch</div>
+      <div id="coord-toast"></div>
+      <div class="toolbar">
+        <button id="zoom-out" title="Zoom out" aria-label="Zoom out">−</button>
+        <button id="zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
+        <button id="fit" title="Reset view" aria-label="Reset view">⤢</button>
+      </div>
+      <div id="loading"><div class="spinner"></div><span>Loading scene…</span></div>
+      <div id="load-error" style="display:none;"></div>
+      <div id="psv"></div>
+      <div id="annotation">
+        <button class="close" id="ann-close" aria-label="Close">✕</button>
+        <span class="aid" id="ann-id"></span>
+        <h3 id="ann-title"></h3>
+        <span class="atype" id="ann-type"></span>
+        <p id="ann-desc"></p>
+        <div class="arow" id="ann-actions"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="theme-config.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "@photo-sphere-viewer/core": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/core@5.7.1/index.module.js",
+    "@photo-sphere-viewer/markers-plugin": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/markers-plugin@5.7.1/index.module.js",
+    "@photo-sphere-viewer/equirectangular-tiles-adapter": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/equirectangular-tiles-adapter@5.7.1/index.module.js"
+  }
+}
+</script>
+<script type="module">
+/* ============================================================
+   PHASE 3 PROTOTYPE — panorama viewer.
+   Same Scene.* API contract as index.html (load/goto/highlight/
+   find/search), same visual chrome, same theme.css/theme-config.js.
+   Renderer is Photo Sphere Viewer instead of OpenSeadragon; object
+   coordinates are yaw/pitch (SCENE_SPEC.md's panorama coordinate
+   system) instead of normalized x/y.
+
+   UNVERIFIED IN A REAL BROWSER — this is a first pass. The most
+   likely first bug is a three.js/PSV version mismatch (pinned
+   versions here are a best estimate, not confirmed compatible by
+   actually running this) — same category of bug as resolveTileSource
+   was for Phase 2, expect to iterate.
+   ============================================================ */
+import { Viewer } from '@photo-sphere-viewer/core';
+import { MarkersPlugin } from '@photo-sphere-viewer/markers-plugin';
+import { EquirectangularTilesAdapter } from '@photo-sphere-viewer/equirectangular-tiles-adapter';
+
+/* ----------------------------------------------------------------
+   Multi-level tile config — thumb/mobile/full tiers as zoom-range
+   LOD rungs. Each level's tileUrl is built from that tier's own
+   source image at its own native pixel dimensions (not one file
+   scaled three ways). See psv-tiles-wiring.md for the full design
+   rationale — this is that design, wired in.
+
+   UNVERIFIED IN A REAL BROWSER — the toolbar/shift-click fixes
+   above this point have been confirmed working; this tiling piece
+   has not yet. Same "test before trusting it" rule applies.
+   ---------------------------------------------------------------- */
+const TILE_LEVELS = [
+  { tier: 'thumb',  zoomRange: [0, 40],   width: 960,  height: 480,  cols: 4, rows: 2 },
+  { tier: 'mobile', zoomRange: [40, 75],  width: 1920, height: 960,  cols: 8, rows: 4 },
+  { tier: 'full',   zoomRange: [75, 100], width: 3840, height: 1920, cols: 8, rows: 4 },
+];
+
+// Appends the tile's crop transform onto a tier's base URL. Handles
+// both a plain static file (production, once Make.com has actually
+// produced separate thumb/mobile/full files — no existing ?tr= to
+// worry about) and a URL that's already carrying an ImageKit resize
+// transform (today's test case, since only the full-res original is
+// uploaded so far — thumb/mobile are simulated via chained transforms
+// on that one file). ImageKit chains transform steps with `:`.
+function appendCropTransform(baseUrl, tileW, tileH, x, y) {
+  const extractTr = `w-${tileW},h-${tileH},cm-extract,x-${x},y-${y}`;
+  return baseUrl.indexOf('?tr=') !== -1
+    ? baseUrl + ':' + extractTr
+    : baseUrl + '?tr=' + extractTr;
+}
+
+function makeTileUrl(sources) {
+  return function (col, row, level) {
+    const cfg = TILE_LEVELS[level];
+    const tileW = cfg.width / cfg.cols;
+    const tileH = cfg.height / cfg.rows;
+    const x = col * tileW;
+    const y = row * tileH;
+    return appendCropTransform(sources[cfg.tier], tileW, tileH, x, y);
+  };
+}
+
+const annEl = document.getElementById('annotation');
+const listEl = document.getElementById('catalog-list');
+const searchEl = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+
+let scene = null;
+let psv = null;
+let markersPlugin = null;
+
+function prefersReducedMotion(){ return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+
+const ACTION_HANDLERS = {
+  openURL: {
+    enabled: obj => (obj.actions||[]).includes('openURL') && (obj.links?.url || obj.links?.wikipedia),
+    label: 'Learn more ↗', className: 'primary',
+    run: obj => Scene.open(obj.id)
+  }
+};
+
+const Scene = {
+  load(data){
+    return new Promise((resolve, reject) => {
+      scene = data;
+      document.getElementById('scene-title').textContent = data.title;
+      document.getElementById('scene-desc').textContent = data.description;
+      document.getElementById('scene-id').textContent = 'SCENE · ' + (data.media[0].id || '001').toUpperCase();
+
+      const media = data.media[0];
+      const usesTiles = !!media.sources;
+
+      psv = new Viewer({
+        container: document.getElementById('psv'),
+        adapter: usesTiles ? EquirectangularTilesAdapter : undefined,
+        panorama: usesTiles
+          ? {
+              baseUrl: media.sources.thumb,
+              levels: TILE_LEVELS.map(function (l) {
+                return { zoomRange: l.zoomRange, width: l.width, cols: l.cols, rows: l.rows };
+              }),
+              tileUrl: makeTileUrl(media.sources),
+            }
+          : media.src,
+        navbar: false,
+        plugins: [MarkersPlugin],
+        touchmoveTwoFingers: false,
+        mousewheelCtrlKey: false
+      });
+      markersPlugin = psv.getPlugin(MarkersPlugin);
+
+      psv.addEventListener('ready', () => {
+        data.objects.forEach(obj => buildMarker(obj));
+        buildCatalog(data.objects);
+        loadingEl.style.display = 'none';
+        wireInteractions();
+        resolve();
+      }, { once: true });
+
+      psv.addEventListener('panorama-error', e => {
+        const msg = e.error?.message || e.message || 'Could not load the panorama image.';
+        reject(new Error(msg));
+      });
+    });
+  },
+  find(tag){ return scene.objects.filter(o => (o.tags||[]).includes(tag)); },
+  search(text){
+    const q = text.trim().toLowerCase();
+    const matches = !q ? scene.objects : scene.objects.filter(o =>
+      o.label.toLowerCase().includes(q) || (o.description||'').toLowerCase().includes(q) || (o.tags||[]).some(t=>t.includes(q)));
+    const matchIds = new Set(matches.map(o=>o.id));
+    scene.objects.forEach(o => {
+      const dim = q && !matchIds.has(o.id);
+      const markerEl = markersPlugin.getMarker(o.id)?.element;
+      if(markerEl) markerEl.classList.toggle('dim', dim);
+      const item = listEl.querySelector(`[data-id="${o.id}"]`);
+      if(item) item.classList.toggle('dim', dim);
+    });
+    return matches;
+  },
+  highlight(id){
+    const markerEl = markersPlugin.getMarker(id)?.element;
+    if(!markerEl) return;
+    markerEl.classList.remove('pulse'); void markerEl.offsetWidth; markerEl.classList.add('pulse');
+  },
+  goto(id){
+    const obj = scene.objects.find(o=>o.id===id);
+    if(!obj || !psv) return;
+    psv.animate({
+      yaw: `${obj.location.yaw}deg`,
+      pitch: `${obj.location.pitch}deg`,
+      speed: prefersReducedMotion() ? '1000rpm' : '3rpm'
+    });
+    Scene.highlight(id);
+  },
+  open(id){
+    const obj = scene.objects.find(o=>o.id===id);
+    const url = obj?.links?.url || obj?.links?.wikipedia;
+    if(url) window.open(url, '_blank', 'noopener');
+  }
+};
+window.Scene = Scene;
+
+function buildMarker(obj){
+  const icon = window.UISP_THEME?.icons?.[obj.type];
+  const glyph = icon || catalogNo(obj);
+  markersPlugin.addMarker({
+    id: obj.id,
+    position: { yaw: `${obj.location.yaw}deg`, pitch: `${obj.location.pitch}deg` },
+    html: `<span class="ring">${glyph}</span>`,
+    className: 'pin',
+    anchor: 'center center'
+  });
+  markersPlugin.getMarker(obj.id).element.addEventListener('click', () => activate(obj.id));
+}
+
+function catalogNo(obj){ const i = scene.objects.findIndex(o=>o.id===obj.id); return String(i+1).padStart(2,'0'); }
+
+function buildCatalog(objects){
+  listEl.innerHTML = '';
+  objects.forEach((obj, i) => {
+    const item = document.createElement('button');
+    item.className = 'catalog-item';
+    item.dataset.id = obj.id;
+    item.innerHTML = `<span class="cid">OBJ.${String(i+1).padStart(2,'0')} — ${obj.id}</span>
+      <span class="clabel">${obj.label}</span><br><span class="ctype">${obj.type}</span>`;
+    item.addEventListener('click', () => activate(obj.id));
+    listEl.appendChild(item);
+  });
+}
+
+/* ---------------- annotation + URL deep-linking (same pattern as index.html) ---------------- */
+function objectURL(id){
+  const url = new URL(window.location.href);
+  url.search = ''; url.searchParams.set('object', id);
+  return url.toString();
+}
+function applyActivation(id){
+  const obj = scene.objects.find(o=>o.id===id);
+  if(!obj) return;
+  document.querySelectorAll('.pin.active').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.catalog-item.active').forEach(p=>p.classList.remove('active'));
+  markersPlugin.getMarker(id).element.classList.add('active');
+  const item = listEl.querySelector(`[data-id="${id}"]`);
+  if(item) item.classList.add('active');
+
+  Scene.goto(id);
+
+  document.getElementById('ann-id').textContent = 'OBJ.' + catalogNo(obj) + ' · ' + obj.id;
+  document.getElementById('ann-title').textContent = obj.label;
+  document.getElementById('ann-type').textContent = obj.type;
+  document.getElementById('ann-desc').textContent = obj.description || '';
+  const actions = document.getElementById('ann-actions');
+  actions.innerHTML = '';
+  Object.values(ACTION_HANDLERS).forEach(def => {
+    if(!def.enabled(obj)) return;
+    const b = document.createElement('button');
+    b.textContent = def.label;
+    if(def.className) b.className = def.className;
+    b.addEventListener('click', () => def.run(obj));
+    actions.appendChild(b);
+  });
+  const b2 = document.createElement('button');
+  b2.textContent = 'Re-center';
+  b2.addEventListener('click', ()=>Scene.goto(obj.id));
+  actions.appendChild(b2);
+  const b3 = document.createElement('button');
+  b3.textContent = 'Copy link';
+  b3.addEventListener('click', ()=>{
+    navigator.clipboard?.writeText(objectURL(id)).then(()=>{
+      b3.textContent = 'Copied!'; setTimeout(()=>{ b3.textContent = 'Copy link'; }, 1400);
+    }).catch(()=>{});
+  });
+  actions.appendChild(b3);
+  annEl.classList.add('show');
+}
+function activate(id){ applyActivation(id); history.pushState({ object:id }, '', objectURL(id)); }
+function clearActive(){
+  document.querySelectorAll('.pin.active').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.catalog-item.active').forEach(p=>p.classList.remove('active'));
+  annEl.classList.remove('show');
+}
+function closeAnnotation(){
+  clearActive();
+  const url = new URL(window.location.href); url.search = '';
+  history.pushState({}, '', url.toString());
+}
+window.addEventListener('popstate', ()=>{
+  const id = new URLSearchParams(window.location.search).get('object');
+  if(id && scene && scene.objects.find(o=>o.id===id)) applyActivation(id);
+  else clearActive();
+});
+document.getElementById('ann-close').addEventListener('click', closeAnnotation);
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeAnnotation(); });
+searchEl.addEventListener('input', ()=>Scene.search(searchEl.value));
+
+/* ---------------- shift-key tracking (see click handler below) ---------------- */
+let shiftHeldAtPointerDown = false;
+document.addEventListener('pointerdown', (e) => {
+  shiftHeldAtPointerDown = e.shiftKey;
+}, true);
+
+/* ---------------- toolbar ---------------- */
+function wireInteractions(){
+  document.getElementById('zoom-in').addEventListener('click', ()=> psv.zoom(psv.getZoomLevel()+10));
+  document.getElementById('zoom-out').addEventListener('click', ()=> psv.zoom(psv.getZoomLevel()-10));
+  document.getElementById('fit').addEventListener('click', ()=> psv.animate({yaw:0, pitch:0, zoom:0, speed:'3rpm'}));
+
+  // Authoring convenience — mirrors index.html's shift+click coordinate
+  // picker. Confirmed via live-printed event object (not docs) during
+  // the panorama-proto debugging session: this installed version (5.7.1)
+  // DOES nest click data under `.data` — but that `.data` object does
+  // NOT include `originalEvent` or `shiftKey` at all. Its real shape:
+  // { rightclick, target, clientX, clientY, viewerX, viewerY, textureX,
+  //   textureY, yaw, pitch, objects }. So Shift state can't come from
+  // the click event at all — track it independently via pointerdown.
+  psv.addEventListener('click', (e) => {
+    if (!shiftHeldAtPointerDown) return;
+    const yawDeg = (e.data.yaw * 180 / Math.PI);
+    const pitchDeg = (e.data.pitch * 180 / Math.PI);
+    const text = `${yawDeg.toFixed(1)}, ${pitchDeg.toFixed(1)}`;
+    navigator.clipboard?.writeText(text).catch(()=>{});
+    const toast = document.getElementById('coord-toast');
+    toast.textContent = `yaw: ${yawDeg.toFixed(1)}°  pitch: ${pitchDeg.toFixed(1)}°  (copied)`;
+    toast.style.opacity = '1';
+    clearTimeout(toast._t);
+    toast._t = setTimeout(()=>{ toast.style.opacity = '0'; }, 1800);
+  });
+}
+
+/* ---------------- init ---------------- */
+async function init(){
+  try {
+    const res = await fetch('scene.json');
+    if(!res.ok) throw new Error(`scene.json responded with HTTP ${res.status}`);
+    const data = await res.json();
+    await Scene.load(data);
+  } catch (err) {
+    console.error(err);
+    loadingEl.style.display = 'none';
+    document.getElementById('load-error').style.display = 'flex';
+    document.getElementById('load-error').innerHTML = `
+      <div class="box">
+        <h3>Couldn't load the scene</h3>
+        <p>${escapeHtml(err.message)}</p>
+        <p>Serve this folder over http:// (not file://), e.g. <code>python3 -m http.server 8000</code>,
+           then open <code>http://localhost:8000/viewer-panorama.html</code>. Make sure
+           <code>scene.json</code> and the panorama image are in the same folder as this file.</p>
+      </div>`;
+  }
+}
+function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+init();
+</script>
+</body>
+</html>
