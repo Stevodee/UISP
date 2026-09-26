@@ -2,59 +2,35 @@
 
 # Universal Immersive Scene Platform Roadmap
 
-## Phase 1 — Intelligent Images ✅ COMPLETE
+## Phase 1 — Intelligent Images
 
 Objectives:
 
-- [x] Display a standard image.
-- [x] Load scene.json.
-- [x] Display hotspots.
-- [x] Click hotspots.
-- [x] Zoom and pan.
-- [x] HTML controls viewer.
+- Display a standard image.
+- Load scene.json.
+- Display hotspots.
+- Click hotspots.
+- Zoom and pan.
+- HTML controls viewer.
 
 Deliverable:
 
-A browser-based intelligent image. **Built and validated** against real photo content
-(not just the demo illustration), with `Scene.load/goto/highlight/find/search` implemented
-against the spec's API surface, real `fetch()`-based scene loading (not embedded data),
-and per-object shareable URLs (`?object=<id>`) per Principle 10.
-
-Also delivered beyond the original objectives: an AI-assisted + manual authoring tool
-(`authoring/scene-authoring.html`) combining open-source object/face detection with
-click-to-place manual hotspots, per Principle 8 (AI Assists, Humans Decide) — every
-AI suggestion requires human review/inclusion before export.
+A browser-based intelligent image.
 
 ---
 
-## Phase 2 — Deep Zoom ✅ COMPLETE
+## Phase 2 — Deep Zoom
 
 Objectives:
 
-- [x] Large images.
-- [x] Image tiling.
-- [x] High-resolution viewing.
-- [x] Object persistence.
+- Large images.
+- Image tiling.
+- High-resolution viewing.
+- Object persistence.
 
 Deliverable:
 
-Museum-quality zoomable image viewer. **Built and validated** against a real high-resolution
-photo. Rendering backed by OpenSeadragon; `tools/make_tiles.py` is the server-side tiling
-pipeline (pure Python/Pillow, standard DZI format, no external C library dependency).
-
-Notable architectural outcome: `index.html` (the viewer) handles both flat images and
-tiled pyramids through the *same* `Scene.*` API and the same file, with no `media.type`
-flag needed — the distinction is resolved automatically from the file OpenSeadragon is
-asked to open. This was a real test of Principle 4 (Renderer Independence) under an
-actual engine swap (CSS transforms → OpenSeadragon), not just a design assumption.
-
-Two real bugs were found and fixed during validation, not just theorized about:
-1. The tile pyramid generator originally stopped early instead of generating down to a
-   proper 1×1 base level, which would have caused silent tile 404s at extreme zoom-out.
-2. OpenSeadragon does not auto-detect a bare image URL as a plain (non-tiled) source —
-   only pyramid descriptors (`.dzi`/`.xml`/IIIF) auto-resolve. Plain images need an
-   explicit `{ type: 'image', url }` wrapper. Fixed in one isolated function
-   (`resolveTileSource`) rather than special-cased throughout the viewer.
+Museum-quality zoomable image viewer.
 
 ---
 
@@ -71,11 +47,34 @@ Deliverable:
 
 Interactive panorama scenes.
 
-**Note:** this phase has a real, non-hypothetical predecessor — the Pictureality project
-(Three.js + Panolens.js, `config.json`-driven, GitHub-Pages-hosted) already solved panorama
-hotspot placement and linking, with hard-won bug fixes on record (X-axis mirroring, raycast
-recursion, hover-text cleanup). Phase 3 should treat that as prior art to reconcile with
-UISP's `scene.json` format, not a from-scratch problem — see the Pictureality project brief.
+### Status: in progress
+
+Renderer chosen: Photo Sphere Viewer (see RESEARCH.md Addendum, Section 15,
+for the comparison against Panolens.js and A-Frame).
+
+Milestones reached so far:
+
+- `viewer-panorama.html` prototype built and confirmed working in a real
+  browser test against a panorama-typed `scene.json`.
+- Toolbar and marker-click interaction bugs fixed (overlay z-index, modifier-key
+  tracking — see RESEARCH.md Addendum for root causes).
+- Multi-resolution tile loading wired in via
+  `@photo-sphere-viewer/equirectangular-tiles-adapter`, mapping a three-tier
+  hosting scheme (`thumb` 960×480 / `mobile` 1920×960 / `full` 3840×1920) onto
+  zoom ranges, with graceful fallback to untiled loading for scenes without
+  tiered `sources`.
+- `examples/panorama/` (viewer, scene.json, theme.css, theme-config.js —
+  mirroring the existing `examples/deep-zoom/` self-contained-folder pattern)
+  pushed to `stevodee/uisp`, live at
+  `stevodee.github.io/UISP/examples/panorama/viewer-panorama.html`, with
+  placeholder thumb/mobile tiers flagged pending a production image pipeline.
+
+Not yet done:
+
+- Production multi-tier image pipeline (Make.com scenario to bake and upload
+  `thumb`/`mobile`/`full` tiers) — currently a manual/simulated step.
+- Resolving the `wireInteractions()` / `scene.json` loading issue noted in the
+  `panorama-proto` debugging notes.
 
 ---
 
@@ -108,14 +107,6 @@ Deliverable:
 
 Rich multimedia scenes.
 
-**Note:** the viewer's action-button system (`ACTION_HANDLERS` in `index.html`) already
-has documented, unimplemented extension points for `playVideo`, `playAudio`, and
-`openDocument` — all three already have media types and action names defined in
-SCENE_SPEC.md, so this phase should be a small, contained addition (a lightbox/player
-UI plus one registry entry each), not a redesign. A photo-gallery concept (multiple
-images per object) does **not** yet have a home in SCENE_SPEC.md and needs a deliberate
-spec addition before it can be built.
-
 ---
 
 ## Phase 6 — AI Authoring
@@ -132,12 +123,6 @@ Deliverable:
 
 AI-assisted scene authoring.
 
-**Note:** substantially delivered early, during Phase 1 — see `authoring/scene-authoring.html`.
-Object detection (YOLOS-tiny / DETR-ResNet-50, swappable) and face detection (BlazeFace,
-presence-only, no identity/naming) both run client-side. Remaining Phase 6 scope: upgrading
-to open-vocabulary detection (e.g. OWL-ViT) so detection isn't limited to fixed COCO classes —
-discussed but not yet built.
-
 ---
 
 ## Phase 7 — 3D
@@ -151,10 +136,6 @@ Objectives:
 Deliverable:
 
 Hybrid image and 3D scenes.
-
-**Note:** `view3D` already has a reserved (unimplemented) slot in `index.html`'s action
-registry, and RESEARCH.md already committed to glTF as the format. Same shape as Phase 5's
-video/audio/document additions.
 
 ---
 
@@ -170,13 +151,6 @@ Objectives:
 Deliverable:
 
 Fully immersive scene exploration.
-
-**Note:** deliberately not started. `theme-config.js` reserves a `layoutMode` field
-(`screenSpace` / `worldSpace`) so this phase won't require redefining the theme schema
-when it's tackled, but no VR interaction logic exists yet. Per this document's own
-original sequencing and Pictureality's project notes on its admin canvas, VR changes the
-entire interaction model (pointer/click vs. controller-ray/gaze) and deserves its own
-design pass rather than an incremental bolt-on.
 
 ---
 

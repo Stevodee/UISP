@@ -587,3 +587,56 @@ It is:
 "Can we define an interoperable scene and experience layer that allows existing visual-media standards to behave as one addressable, navigable, browser-based document?"
 
 That is the question the prototype should attempt to answer.
+
+---
+
+# 15. Addendum — Renderer Choice for Panoramas (Phase 3)
+
+Phase 3 needed a concrete panorama renderer to build `viewer-panorama.html`
+against. This is an implementation decision under Principle #4 (Renderer
+Independence) — the scene format does not depend on this choice, but the
+Phase 3 prototype needs one to exist.
+
+## Candidates considered
+
+Pictureality's own viewer (Panolens.js on Three.js) was the obvious first
+candidate, since it was already proven in production. It was set aside for
+Phase 3 specifically: Panolens' upstream repo is confirmed archived (June
+2023), so it is a dead end for a platform meant to remain usable for decades
+(Principle #12, Longevity). A-Frame was also considered.
+
+## Decision
+
+**Photo Sphere Viewer (PSV) was chosen for Phase 3.** Reasoning:
+
+- Three.js-based, with a full `Object3D`-level escape hatch, so it doesn't
+  foreclose the kind of low-level control Pictureality's Panolens work relied
+  on.
+- Ships a Virtual Tour plugin purpose-built for multi-panorama linking —
+  directly relevant to the hotspot/tour model already validated in
+  Pictureality.
+- Confirmed mobile touch and gyroscope support.
+- Actively maintained, unlike Panolens.
+
+## What was learned building against it
+
+- PSV's Markers plugin renders full-container overlay elements
+  (`.psv-markers-svg-container`, `.psv-markers`) that intercept pointer events
+  across their entire area, not just where something is drawn. Any UI chrome
+  layered on top of the viewer (toolbar, annotation popups) needs a z-index
+  decisively above PSV's internal marker layer to receive clicks reliably.
+- In the installed version (5.7.1), the `click` event's `.data` payload does
+  not include `shiftKey` or `originalEvent`, despite PSV's own documentation
+  example implying it does. Modifier-key state needs to be tracked
+  independently (e.g. a `pointerdown` listener) rather than read off the
+  click event.
+- A multi-resolution tile adapter
+  (`@photo-sphere-viewer/equirectangular-tiles-adapter`) maps cleanly onto a
+  three-tier hosting scheme (`thumb`/`mobile`/`full`), with a fallback to
+  plain untiled loading for scenes that don't define tiered `sources` — this
+  keeps the tiling optional at the scene-data level, consistent with
+  Principle #13 (Extensibility).
+
+This addendum documents an implementation decision, not a change to the Scene
+specification itself — a future renderer swap (per Principle #4) remains
+possible without touching `SCENE_SPEC.md`.
