@@ -6,7 +6,9 @@
 Object Action, a `returnable` link flag, and `Scene.back()` — together
 these support a resumable detour: pausing a video at a stop point to
 explore another scene (e.g. a panorama), then returning to the video where
-it left off. No existing fields changed; this is additive.
+it left off. Also clarified units, origin, and axis convention for the
+Panorama and 3D coordinate systems, which were previously left implicit.
+No existing fields changed; this is additive.
 
 **Changes from 0.1:** added the Media References section below — Scene
 media entries may now indirect through a descriptor document rather than
@@ -155,7 +157,8 @@ Optional:
 
 ## Coordinate Systems
 
-The specification supports multiple coordinate systems.
+The specification supports multiple coordinate systems. Each scene
+declares which system its objects use via the object's `location` field.
 
 ### Image
 
@@ -164,7 +167,8 @@ x
 y
 ```
 
-Normalized values (0–1).
+Normalized values (0–1), origin at top-left, `x` increasing right and `y`
+increasing down.
 
 ---
 
@@ -174,6 +178,18 @@ Normalized values (0–1).
 yaw
 pitch
 ```
+
+Units: degrees.
+
+Origin: `yaw = 0` is the panorama's initial forward heading at capture
+time (a per-scene relative reference), not magnetic north, unless the
+scene explicitly sets `headingReference: "magnetic-north"` — in which case
+`yaw = 0` is true north and the capture heading is stored separately.
+Relative heading is the default, since no current panorama carries
+verified north data; magnetic-north is an opt-in upgrade once real
+orientation data is available.
+
+`pitch = 0` is the horizon; positive pitch looks up.
 
 ---
 
@@ -196,7 +212,8 @@ pitch
 
 A 360 video still has a full sphere of view at any given timestamp, so a
 stop point may also specify which direction the viewer should be facing
-when playback pauses there.
+when playback pauses there. Same units and origin convention as the
+Panorama system above.
 
 ---
 
@@ -207,6 +224,16 @@ x
 y
 z
 ```
+
+Follows glTF convention: right-handed, Y-up, units in meters. Stated by
+reference rather than redefined, consistent with UISP building on glTF
+(see RESEARCH.md) rather than inventing a 3D coordinate system.
+
+---
+
+*Conversion between coordinate systems — e.g. deriving an x/y/z position
+from a panorama's yaw/pitch for the same object — is not yet defined and is
+deferred to the VR/3D phase; see ROADMAP.md Phase 8.*
 
 ---
 
